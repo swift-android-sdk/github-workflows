@@ -163,6 +163,10 @@ on:
         type: boolean
         description: "Boolean to enable building with the Swift SDK for Android. Defaults to false"
         default: false
+      enable_android_sdk_checks:
+        type: boolean
+        description: "Boolean to enable testing with the Swift SDK for Android. Defaults to false"
+        default: false
       enable_macos_checks:
         type: boolean
         description: "Boolean to enable macOS testing. Defaults to false"
@@ -438,7 +442,7 @@ jobs:
 
   android-sdk-build:
     name: Swift SDK for Android Build (${{ matrix.swift_version }} - ${{ matrix.os_version }})
-    if: ${{ inputs.enable_android_sdk_build }}
+    if: ${{ inputs.enable_android_sdk_build || inputs.enable_android_sdk_checks }}
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -479,6 +483,14 @@ jobs:
         env:
           BUILD_FLAGS: ${{ (contains(matrix.swift_version, 'nightly') && inputs.swift_nightly_flags) || inputs.swift_flags }}
         run: |
+          # TODO: move this to the end, after we build
+          # when we have enabled checks (and not just build), then setup
+          # and launch the Android emulator and run the package tests
+          if [[ "${{ inputs.enable_android_sdk_checks }}" == "true" ]]; then
+            curl -s --retry 3 https://raw.githubusercontent.com/swiftlang/github-workflows/refs/heads/main/.github/workflows/scripts/android/android-emulator-tests.sh | \
+            bash -s -- --android-sdk-triple="${{ inputs.sdk_triple }}"
+          fi
+
           ${{ inputs.android_sdk_pre_build_command }}
           if command -v apt-get >/dev/null 2>&1 ; then # bookworm, noble, jammy, focal
             apt-get -q update && apt-get -yq install curl
