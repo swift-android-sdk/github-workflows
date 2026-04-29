@@ -803,6 +803,8 @@ build() {
 
     if [[ "$INSTALL_ANDROID" == true ]]; then
         log "Running Swift build with Android Swift SDK"
+        log "Host toolchain for Android build: ${SWIFT_EXECUTABLE_FOR_ANDROID_SDK}"
+        "$SWIFT_EXECUTABLE_FOR_ANDROID_SDK" --version || true
 
         local sdk_name="${ANDROID_SDK_TAG}${ANDROID_SDK_PATH_SEP}android"
 
