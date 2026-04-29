@@ -412,6 +412,16 @@ if [[ "$INSTALL_ANDROID" == true && -z "$ANDROID_SDK_TAG" ]]; then
     fatal "ANDROID_SDK_TAG is not set but Android Swift SDK installation was requested"
 fi
 
+# Export the resolved Android SDK tag so subsequent workflow steps
+# (e.g. android-emulator-tests.sh) pick the same SDK we just installed
+# rather than guessing via 'find ... | tail -n 1'
+if [[ "$INSTALL_ANDROID" == true && -n "${GITHUB_ENV:-}" ]]; then
+    {
+        echo "SWIFT_ANDROID_SDK_TAG=${ANDROID_SDK_TAG}"
+        echo "SWIFT_ANDROID_SDK_BUNDLE=${ANDROID_SDK_TAG}_android.artifactbundle"
+    } >> "$GITHUB_ENV"
+fi
+
 if [[ "$INSTALL_STATIC_LINUX" == true && -z "$STATIC_LINUX_SDK_TAG" ]]; then
     fatal "STATIC_LINUX_SDK_TAG is not set but Static Linux Swift SDK installation was requested"
 fi
@@ -687,8 +697,14 @@ install_android_sdk() {
 
     rm -f "${sdk_url}"
 
-    # now setup the link to the local ANDROID_NDK_HOME
-    swift sdk configure --show-configuration "$(swift sdk list | grep android | tail -n 1)"
+    # now setup the link to the local ANDROID_NDK_HOME, using the matched
+    # toolchain so its sdk subcommand and config files agree with what we just installed
+    local installed_sdk_name
+    installed_sdk_name=$("$SWIFT_EXECUTABLE_FOR_ANDROID_SDK" sdk list | grep "^${ANDROID_SDK_TAG}.*android" | tail -n 1)
+    if [[ -z "$installed_sdk_name" ]]; then
+        fatal "Could not find newly installed Android Swift SDK matching tag ${ANDROID_SDK_TAG}"
+    fi
+    "$SWIFT_EXECUTABLE_FOR_ANDROID_SDK" sdk configure --show-configuration "$installed_sdk_name"
 
     # guess some common places where the swift-sdks file lives
     cd ~/Library/org.swift.swiftpm || cd ~/.config/swiftpm || cd ~/.local/swiftpm || cd ~/.swiftpm || cd /root/.swiftpm
@@ -717,7 +733,11 @@ install_android_sdk() {
         fi
     fi
 
-    ./swift-sdks/"${android_sdk_bundle_name}"/swift-android/scripts/setup-android-sdk.sh
+    # run the bundled setup script with the matched toolchain in front of PATH
+    # so any 'swift' it invokes resolves to the version that matches the SDK
+    local toolchain_bin_dir
+    toolchain_bin_dir="$(dirname "$SWIFT_EXECUTABLE_FOR_ANDROID_SDK")"
+    PATH="${toolchain_bin_dir}:${PATH}" ./swift-sdks/"${android_sdk_bundle_name}"/swift-android/scripts/setup-android-sdk.sh
     cd -
 }
 
@@ -783,6 +803,8 @@ build() {
 
     if [[ "$INSTALL_ANDROID" == true ]]; then
         log "Running Swift build with Android Swift SDK"
+        log "Host toolchain for Android build: ${SWIFT_EXECUTABLE_FOR_ANDROID_SDK}"
+        "$SWIFT_EXECUTABLE_FOR_ANDROID_SDK" --version || true
 
         local sdk_name="${ANDROID_SDK_TAG}${ANDROID_SDK_PATH_SEP}android"
 
