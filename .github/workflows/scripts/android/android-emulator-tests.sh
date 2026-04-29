@@ -21,8 +21,18 @@ ANDROID_PROFILE="Nexus 10"
 ANDROID_EMULATOR_TIMEOUT=300
 
 SWIFTPM_HOME="${XDG_CONFIG_HOME}"/swiftpm
+# Prefer the bundle name exported by install-and-build-with-sdk.sh so that we
+# pick the SDK matching the requested swift_version (release, snapshot, or main),
+# rather than whichever happens to sort last on disk.
 # e.g., "${SWIFTPM_HOME}"/swift-sdks/swift-DEVELOPMENT-SNAPSHOT-2025-12-11-a_android.artifactbundle/
-SWIFT_ANDROID_SDK_HOME=$(find "${SWIFTPM_HOME}"/swift-sdks -maxdepth 1 -name 'swift-*android.artifactbundle' | tail -n 1)
+if [[ -n "${SWIFT_ANDROID_SDK_BUNDLE:-}" ]]; then
+    SWIFT_ANDROID_SDK_HOME="${SWIFTPM_HOME}/swift-sdks/${SWIFT_ANDROID_SDK_BUNDLE}"
+    if [[ ! -d "${SWIFT_ANDROID_SDK_HOME}" ]]; then
+        fatal "Android Swift SDK bundle not found at: ${SWIFT_ANDROID_SDK_HOME}"
+    fi
+else
+    SWIFT_ANDROID_SDK_HOME=$(find "${SWIFTPM_HOME}"/swift-sdks -maxdepth 1 -name 'swift-*android.artifactbundle' | tail -n 1)
+fi
 
 ANDROID_SDK_TRIPLE="x86_64-unknown-linux-android28"
 
